@@ -29,41 +29,42 @@
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
           crossorigin=""></script>
 
-  <script>
-    // Добавяй снимките тук (точни имена и разширения, както са в репото)
-    const PHOTOS = [
-      { lat: 42.697887755392884, lng: 23.330386398798577, src: "IMG_3380.JPEG", title: "София – НДК", date: "2025-08-21" },
-      // { lat: ..., lng: ..., src: "ДРУГА_СНИМКА.JPEG", title: "Описание", date: "ГГГГ-ММ-ДД" },
-    ];
+<script>
+  // Добави тук снимките (точните имена и разширения от репото)
+  const PHOTOS = [
+    { lat: 42.697887755392884, lng: 23.330386398798577, src: "IMG_3380.JPEG", title: "София – НДК", date: "2025-08-21" },
+    // добавяй още редове по този модел
+  ];
 
-    // Картата + OSM слой
-    const map = L.map('map');
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+  // Създаваме картата + OSM слой
+  const map = L.map('map');
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
 
-    // Маркери и popups
-    const markers = [];
-    PHOTOS.forEach(p => {
-      const html = `
-        <div class="popup">
-          <h4>${p.title || "Снимка"}</h4>
-          <img src="${p.src}" alt="${p.title || "Photo"}" />
-          ${p.date ? `<small>Дата: ${p.date}</small><br/>` : ""}
-          <small>Коорд.: ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</small>
-        </div>`;
-      const m = L.marker([p.lat, p.lng]).bindPopup(html, { maxWidth: 280 });
-      m.addTo(map);
-      markers.push(m);
-    });
+  // Маркери и popups
+  const markers = [];
+  PHOTOS.forEach(p => {
+    const html = `
+      <div class="popup">
+        <h4>${p.title || "Снимка"}</h4>
+        <img src="${p.src}" alt="${p.title || "Photo"}" />
+        ${p.date ? `<small>Дата: ${p.date}</small><br/>` : ""}
+        <small>Коорд.: ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</small>
+      </div>`;
+    const m = L.marker([p.lat, p.lng]).bindPopup(html, { maxWidth: 280 });
+    m.addTo(map);
+    markers.push(m);
+  });
 
-    // Центриране
-    if (markers.length) {
-      const group = L.featureGroup(markers);
-      map.fitBounds(group.getBounds().pad(0.2));
-    } else {
-      map.setView([42.7, 23.3], 7);
-    }
-  </script>
+  // Центриране на картата
+  if (markers.length) {
+    const group = L.featureGroup(markers);
+    map.fitBounds(group.getBounds().pad(0.2));
+  } else {
+    map.setView([42.7, 23.3], 7);
+  }
+</script>
 </body>
 </html>
+
