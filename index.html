@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Галерия върху карта</title>
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <style>
+    html, body { height: 100%; margin: 0; }
+    #map { height: 100%; width: 100%; }
+    .popup img {
+      max-width: 260px; /* регулирай при нужда */
+      height: auto;
+      display: block;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.2);
+      margin-bottom: 6px;
+    }
+    .popup h4 { margin: 0 0 4px 0; font: 600 14px/1.3 system-ui, Arial; }
+    .popup small { color:#555; }
+    .credit { position: absolute; z-index: 999; right: 8px; bottom: 8px; background: #fff; padding: 6px 8px; border-radius: 8px; box-shadow: 0 1px 6px rgba(0,0,0,.15); font: 12px system-ui, Arial; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div class="credit">Карта: © <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> ·
+    Библиотека: <a href="https://leafletjs.com/" target="_blank">Leaflet</a></div>
+
+  <!-- Leaflet JS -->
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+
+  <script>
+    // 1) ТУК добавяш снимките си. src е пътят (например в папка photos/)
+    // lat/lng са десетични координати. title е надписът в popup.
+    const PHOTOS = [
+      { lat: 42.697887755392884, lng: 23.330386398798577, src: "test/IMG_3380.jpg", title: "София – НДК", date: "2025-08-21" },
+      // Добавяй още...
+    ];
+	
+    // 2) Създаваме картата и базов слой от OpenStreetMap
+    const map = L.map('map');
+    const osm = L.tileLayer(
+      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      { attribution: '&copy; OpenStreetMap contributors' }
+    ).addTo(map);
+
+    // 3) Добавяме маркери и popup-и със снимки
+   const markers = [];
+    PHOTOS.forEach(p => {
+      const html = `
+        <div class="popup">
+          <h4>${p.title || "Снимка"}</h4>
+          <img src="${p.src}" alt="${p.title || "Photo"}" />
+          ${p.date ? `<small>Дата: ${p.date}</small><br/>` : ""}
+          <small>Коорд.: ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</small>
+        </div>`;
+      const m = L.marker([p.lat, p.lng]).bindPopup(html, { maxWidth: 280 });
+      m.addTo(map);
+      markers.push(m);
+    });
