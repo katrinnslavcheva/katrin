@@ -86,30 +86,26 @@ const map = L.map('map', {
   worldCopyJump: true
 });
 
-// добави плочките с малко по-„robust“ настройки
-const tiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+// по-надежден tile URL (без субдомейни)
+const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors',
-  crossOrigin: true,
   detectRetina: true,
-  keepBuffer: 2
+  keepBuffer: 2,
+  maxNativeZoom: 19
 }).addTo(map);
 
-// изчакай картата да е готова и тогава задавай изгледа
+// логни, ако плочка не се зареди
+tiles.on('tileerror', (e) => console.warn('Tile error:', e.tile?.src));
+
+// след като картата е готова — задаваме изглед „Европа“
 map.whenReady(() => {
-  map.setView([54, 15], 4);          // цяла Европа
-  // ако държиш да ограничиш пан-а след това:
-  // const EUROPE_BOUNDS = L.latLngBounds([34, -25], [72, 45]);
-  // map.setMaxBounds(EUROPE_BOUNDS.pad(0.05));
-  // map.on('drag', () => map.panInsideBounds(EUROPE_BOUNDS, { animate: false }));
+  map.setView([54, 15], 4); // цяла Европа
 });
 
-// ако контейнерът е променил размера си (header, CSS и т.н.)
+// ако контейнерът е мернат след рендър (заради header), рефрешни размера
 setTimeout(() => map.invalidateSize(), 0);
 
-/* Стартов изглед: „цяла Европа“ */
-const EUROPE_CENTER = [54, 15];        // приблизително над Централна Европа
-const EUROPE_BOUNDS = L.latLngBounds([34, -25], [72, 45]); // SW / NE (малко по-широки граници)
-map.setView(EUROPE_CENTER, 4);
+L.control.scale({imperial:false}).addTo(map);
 
 /* === Зелен маркер (SVG DivIcon) === */
 const greenPin = (function(){
@@ -160,12 +156,18 @@ function buildMarkers(data){
   fitAll();
 }
 
-/* === Fit към всички точки (в Европа) === */
+/* === Fit към всички точки (работи коректно при 0/1/много) === */
 function fitAll(){
-  if (!items.length) { map.setView(EUROPE_CENTER, 4); return; }
+  if (!items.length) {
+    map.setView([54, 15], 4);
+    return;
+  }
+  if (items.length === 1) {
+    map.setView(items[0].marker.getLatLng(), 12);
+    return;
+  }
   const group = L.featureGroup(items.map(x => x.marker));
-  const b = group.getBounds();
-  map.fitBounds(b.pad(0.2));
+  map.fitBounds(group.getBounds().pad(0.2), { maxZoom: 8 });
 }
 
 /* === Филтър по заглавие/дата === */
@@ -205,23 +207,19 @@ function applyHash(){
 
 /* === Събития === */
 $q.addEventListener('input', (e) => applyFilter(e.target.value));
-$fitBtn.addEventListener('click', fitAll);
-$shareBtn.addEventListener('click', async () => {
+document.getElementById('fitBtn').addEventListener('click', fitAll);
+document.getElementById('shareBtn').addEventListener('click', async () => {
   updateHash();
   const url = location.href;
   try {
     await navigator.clipboard.writeText(url);
-    $shareBtn.textContent = 'Линк копиран!';
-    setTimeout(() => $shareBtn.textContent = 'Сподели изгледа', 1200);
+    document.getElementById('shareBtn').textContent = 'Линк копиран!';
+    setTimeout(() => document.getElementById('shareBtn').textContent = 'Сподели изгледа', 1200);
   } catch {
-    // ако няма достъп до clipboard, просто селектираме location bar
     alert('Линкът е готов в адресната лента.');
   }
 });
-map.on('moveend zoomend', () => {
-  // обновявай hash „мълчаливо“, но не спамим при drag – само ако вече има hash
-  if (location.hash) updateHash();
-});
+map.on('moveend zoomend', () => { if (location.hash) updateHash(); });
 
 /* === Зареждане на данни === */
 async function loadData(){
@@ -248,4 +246,3 @@ loadData();
 </script>
 </body>
 </html>
-
