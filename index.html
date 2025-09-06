@@ -4,67 +4,261 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Галерия върху карта</title>
+
+  <!-- Leaflet core -->
   <link rel="stylesheet"
         href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
         crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          crossorigin=""></script>
+
+  <!-- MarkerCluster -->
+  <link rel="stylesheet"
+        href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet"
+        href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
   <style>
+    :root{
+      --bg:#fff; --ink:#111; --muted:#666; --card:#fff; --shadow:0 2px 10px rgba(0,0,0,.12);
+      --accent:#2f80ed;
+    }
     html, body { height: 100%; margin: 0; }
-    #map { height: 100%; width: 100%; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: var(--ink); }
+    #map { position: absolute; inset: 56px 0 170px 0; }
+    header {
+      position: absolute; top: 0; left: 0; right: 0; height: 56px; display: grid;
+      grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; padding: 8px 10px;
+      background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(255,255,255,.85));
+      backdrop-filter: blur(6px); z-index: 1000; box-shadow: 0 1px 0 rgba(0,0,0,.06);
+    }
+    header .search {
+      display: flex; align-items: center; gap: 8px; background: var(--card);
+      border: 1px solid #e6e6e6; border-radius: 10px; padding: 6px 10px; box-shadow: var(--shadow);
+      max-width: 620px;
+    }
+    header input[type="search"]{
+      border: 0; outline: 0; width: 100%; font-size: 14px; background: transparent;
+    }
+    header .btn {
+      border: 1px solid #e6e6e6; background: var(--card); padding: 6px 10px; border-radius: 10px;
+      cursor: pointer; box-shadow: var(--shadow); font-size: 13px;
+    }
+    .credit { position: absolute; z-index: 999; right: 8px; bottom: 178px; background: #fff;
+              padding: 6px 8px; border-radius: 8px; box-shadow: var(--shadow);
+              font: 12px system-ui, Arial; }
+    /* Mini gallery */
+    .gallery {
+      position: absolute; left: 0; right: 0; bottom: 0; height: 170px; background: #fafafa;
+      border-top: 1px solid #eee; box-shadow: 0 -1px 6px rgba(0,0,0,.05); z-index: 900;
+      display: grid; grid-template-rows: auto 1fr;
+    }
+    .gallery header { position: static; height: auto; box-shadow: none; padding: 6px 12px; background: transparent; }
+    .strip {
+      overflow: auto; padding: 8px 10px; display: grid; grid-auto-flow: column; grid-auto-columns: 160px;
+      gap: 10px;
+    }
+    .card {
+      background: var(--card); border: 1px solid #e8e8e8; border-radius: 12px; padding: 8px;
+      box-shadow: var(--shadow); cursor: pointer; min-width: 0;
+    }
+    .card img { width: 100%; height: 90px; object-fit: cover; border-radius: 8px; display: block; }
+    .card h4 { margin: 6px 0 2px; font: 600 13px/1.3 system-ui, Arial; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .card small { color: var(--muted); font-size: 12px; display: block; }
+    /* Popup */
     .popup img { max-width: 260px; height: auto; display: block; border-radius: 8px;
                  box-shadow: 0 2px 10px rgba(0,0,0,.2); margin-bottom: 6px; }
     .popup h4 { margin: 0 0 4px 0; font: 600 14px/1.3 system-ui, Arial; }
     .popup small { color:#555; }
-    .credit { position: absolute; z-index: 999; right: 8px; bottom: 8px; background: #fff;
-              padding: 6px 8px; border-radius: 8px; box-shadow: 0 1px 6px rgba(0,0,0,.15);
-              font: 12px system-ui, Arial; }
+    /* Leaflet tweaks */
+    .leaflet-control-container .leaflet-top.leaflet-left { margin-top: 64px; }
+    @media (max-width: 700px){
+      #map { inset: 96px 0 190px 0; }
+      header { grid-template-columns: 1fr; height: 96px; grid-auto-rows: min-content; }
+      .credit { bottom: 198px; }
+    }
   </style>
 </head>
 <body>
-  <div id="map"></div>
-  <div class="credit">Карта: © <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> ·
-    Библиотека: <a href="https://leafletjs.com/" target="_blank">Leaflet</a></div>
+  <header>
+    <div class="search">
+      🔎
+      <input id="q" type="search" placeholder="Търси по заглавие или дата (напр. 2025-08) …" />
+    </div>
+    <button id="fitBtn" class="btn" title="Покажи всички маркери">Покажи всички</button>
+    <button id="clrBtn" class="btn" title="Изчисти търсенето">Изчисти</button>
+  </header>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-          crossorigin=""></script>
+  <div id="map"></div>
+
+  <div class="credit">
+    Карта: © <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> ·
+    Библиотека: <a href="https://leafletjs.com/" target="_blank">Leaflet</a> ·
+    Клъстери: <a href="https://github.com/Leaflet/Leaflet.markercluster" target="_blank">MarkerCluster</a>
+  </div>
+
+  <section class="gallery" aria-label="Мини галерия">
+    <header>
+      <strong style="font-size:14px;">Снимки (<span id="countAll">0</span>, филтрирани: <span id="countShown">0</span>)</strong>
+    </header>
+    <div id="strip" class="strip" role="list"></div>
+  </section>
 
 <script>
-  // Добави тук снимките (точните имена и разширения от репото)
-  const PHOTOS = [
-    { lat: 42.697887755392884, lng: 23.330386398798577, src: "IMG_3380.JPEG", title: "София – НДК", date: "2025-08-21" },
-    // добавяй още редове по този модел
-  ];
+/** Настройки **/
+const IMG_BASE = "./"; // ако снимките са в подпапка, сложи 'photos/' и в src остави само името
+const ENABLE_JSON = true; // ако имаш photos.json до index.html. Иначе ще падне обратно към PHOTOS.
 
-  // Създаваме картата + OSM слой
-  const map = L.map('map');
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
-  }).addTo(map);
+/** Данни — fallback ако няма photos.json **/
+let PHOTOS = [
+  { lat: 42.697887755392884, lng: 23.330386398798577, src: "IMG_3380.JPEG", title: "София – НДК", date: "2025-08-21" },
+  // добавяй още редове по този модел
+];
 
-  // Маркери и popups
-  const markers = [];
-  PHOTOS.forEach(p => {
-    const html = `
-      <div class="popup">
-        <h4>${p.title || "Снимка"}</h4>
-        <img src="${p.src}" alt="${p.title || "Photo"}" />
-        ${p.date ? `<small>Дата: ${p.date}</small><br/>` : ""}
-        <small>Коорд.: ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</small>
-      </div>`;
-    const m = L.marker([p.lat, p.lng]).bindPopup(html, { maxWidth: 280 });
-    m.addTo(map);
-    markers.push(m);
+/** Хелпери **/
+const byId = (id) => document.getElementById(id);
+const $q = byId('q'), $strip = byId('strip'), $countAll = byId('countAll'), $countShown = byId('countShown');
+const $fitBtn = byId('fitBtn'), $clrBtn = byId('clrBtn');
+
+const normalize = (s) => (s||"").toString().toLowerCase().normalize('NFKD');
+
+/** КАРТА **/
+const map = L.map('map');
+const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+L.control.scale({imperial:false}).addTo(map);
+
+// Клъстер група
+const cluster = L.markerClusterGroup();
+map.addLayer(cluster);
+
+// Държим индекси за филтри
+let markers = [];        // { marker, data }
+let currentFilter = "";
+
+/** Рендер на pop-up HTML (lazy image) **/
+function popupHTML(p){
+  const src = (p.src.startsWith('http') ? p.src : IMG_BASE + p.src);
+  return `
+    <div class="popup">
+      <h4>${p.title ? escapeHTML(p.title) : "Снимка"}</h4>
+      <img loading="lazy" src="${src}" alt="${escapeHTML(p.title || 'Photo')}" />
+      ${p.date ? `<small>Дата: ${escapeHTML(p.date)}</small><br/>` : ""}
+      <small>Коорд.: ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</small>
+    </div>`;
+}
+function escapeHTML(str){ return (str||"").replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+/** Създаване/ресет на маркери **/
+function buildMarkers(data){
+  cluster.clearLayers();
+  markers = data.map(p => {
+    const m = L.marker([p.lat, p.lng]).bindPopup(popupHTML(p), { maxWidth: 280 });
+    cluster.addLayer(m);
+    return { marker: m, data: p };
   });
+  updateCounts();
+  fitAll();
+  buildGallery(data);
+}
 
-  // Центриране на картата
-  if (markers.length) {
-    const group = L.featureGroup(markers);
+/** Fit bounds върху всички текущи маркери **/
+function fitAll(){
+  if (markers.length){
+    const group = L.featureGroup(markers.map(x => x.marker));
     map.fitBounds(group.getBounds().pad(0.2));
   } else {
     map.setView([42.7, 23.3], 7);
   }
+}
+
+/** Мини-галерия **/
+function buildGallery(list){
+  $strip.innerHTML = "";
+  for (const p of list){
+    const src = (p.src.startsWith('http') ? p.src : IMG_BASE + p.src);
+    const item = document.createElement('div');
+    item.className = 'card';
+    item.setAttribute('role','listitem');
+    item.innerHTML = `
+      <img loading="lazy" src="${src}" alt="${escapeHTML(p.title || 'Photo')}" />
+      <h4 title="${escapeHTML(p.title || '')}">${escapeHTML(p.title || 'Снимка')}</h4>
+      <small>${escapeHTML(p.date || '')}</small>
+    `;
+    item.addEventListener('click', () => {
+      // намери съответния маркер и отвори pop-up
+      const hit = markers.find(x => x.data === p);
+      if (hit){
+        map.panTo(hit.marker.getLatLng(), { animate: true });
+        setTimeout(() => hit.marker.openPopup(), 200);
+      }
+    });
+    $strip.appendChild(item);
+  }
+  updateCounts(list.length);
+}
+
+/** Филтър **/
+function applyFilter(){
+  const q = normalize(currentFilter);
+  cluster.clearLayers();
+
+  const filtered = q
+    ? markers.filter(x => {
+        const t = normalize(x.data.title);
+        const d = normalize(x.data.date);
+        return t.includes(q) || d.includes(q);
+      })
+    : markers;
+
+  // върни слоевете
+  for (const x of filtered) cluster.addLayer(x.marker);
+
+  updateCounts(filtered.length);
+  // галерия за филтрираните
+  buildGallery(filtered.map(x => x.data));
+
+  if (filtered.length) {
+    const group = L.featureGroup(filtered.map(x => x.marker));
+    map.fitBounds(group.getBounds().pad(0.2));
+  }
+}
+
+/** Броячи **/
+function updateCounts(shown = markers.length){
+  $countAll.textContent = markers.length.toString();
+  $countShown.textContent = shown.toString();
+}
+
+/** UI събития **/
+$q.addEventListener('input', (e) => { currentFilter = e.target.value || ""; applyFilter(); });
+$fitBtn.addEventListener('click', fitAll);
+$clrBtn.addEventListener('click', () => { $q.value = ""; currentFilter = ""; applyFilter(); });
+
+/** Зареждане на данни **/
+async function loadData(){
+  if (!ENABLE_JSON){
+    buildMarkers(PHOTOS);
+    return;
+  }
+  try{
+    const res = await fetch('./photos.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error('No JSON');
+    const json = await res.json();
+    if (!Array.isArray(json)) throw new Error('JSON must be an array');
+    PHOTOS = json;
+  } catch(e){
+    // fallback към PHOTOS от HTML
+    console.warn('Не е намерен photos.json или е невалиден. Използвам вградените PHOTOS.', e);
+  }
+  buildMarkers(PHOTOS);
+}
+
+// старт
+loadData();
 </script>
 </body>
 </html>
-
