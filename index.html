@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Галерия върху карта</title>
+  <title>Карта с албуми по места</title>
 
   <!-- Leaflet -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
 
   <!-- MarkerCluster -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
@@ -15,254 +15,281 @@
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
   <style>
-    :root{ --card:#fff; --shadow:0 2px 10px rgba(0,0,0,.12); }
+    :root{ --card:#fff; --shadow:0 2px 10px rgba(0,0,0,.12); --ink:#111; --muted:#666; --accent:#2ecc71; }
     html, body { height: 100%; margin: 0; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
-    /* карта на пълен екран (само header отгоре) */
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color:var(--ink); }
     #map { position: absolute; inset: 56px 0 0 0; }
     header {
-      position: absolute; top: 0; left: 0; right: 0; height: 56px; display: grid;
-      grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; padding: 8px 10px;
-      background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(255,255,255,.85));
-      backdrop-filter: blur(6px); z-index: 1000; box-shadow: 0 1px 0 rgba(0,0,0,.06);
+      position: absolute; top:0; left:0; right:0; height:56px; z-index: 1000;
+      display:grid; grid-template-columns: 1fr auto auto; gap:8px; align-items:center;
+      padding:8px 10px; background:linear-gradient(180deg, rgba(255,255,255,.98), rgba(255,255,255,.85));
+      backdrop-filter: blur(6px); box-shadow: 0 1px 0 rgba(0,0,0,.06);
     }
     .search { display:flex; align-items:center; gap:8px; background:var(--card);
       border:1px solid #e6e6e6; border-radius:10px; padding:6px 10px; box-shadow:var(--shadow); max-width:620px;}
     input[type="search"]{ border:0; outline:0; width:100%; font-size:14px; background:transparent;}
     .btn { border:1px solid #e6e6e6; background:var(--card); padding:6px 10px; border-radius:10px;
       cursor:pointer; box-shadow:var(--shadow); font-size:13px; }
-    .credit { position: absolute; z-index: 999; right: 8px; bottom: 8px; background: #fff;
-              padding: 6px 8px; border-radius: 8px; box-shadow: var(--shadow);
-              font: 12px system-ui, Arial; }
+    .credit { position:absolute; right:8px; bottom:8px; z-index:500; background:#fff; padding:6px 8px;
+      border-radius:8px; box-shadow:var(--shadow); font:12px system-ui, Arial; }
+    .leaflet-control-container .leaflet-top.leaflet-left { margin-top:64px; }
+
     /* Popup стилове */
-    .leaflet-popup-content-wrapper.photo-popup {
-      padding: 0;
-      border-radius: 14px;
-      box-shadow: 0 6px 24px rgba(0,0,0,.25);
+    .leaflet-popup-content-wrapper.photo-popup { padding:0; border-radius:14px; box-shadow:0 6px 24px rgba(0,0,0,.25); }
+    .photo-popup .popup { width:300px; padding:12px; }
+    .photo-popup .popup h4 { margin:0 0 6px; font:600 15px/1.3 system-ui, Arial; }
+    .photo-popup .popup small{ color:#555; }
+    .albums { margin-top:8px; display:grid; gap:6px; }
+    .album-btn {
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      background:#f7fff9; border:1px solid #ccf1db; color:#0f5132;
+      padding:8px 10px; border-radius:10px; cursor:pointer; font-size:13px;
     }
-    .photo-popup .popup {
-      width: 300px;
-      padding: 12px;
+    .album-btn:hover { background:#eefcf5; }
+    .popup .cover {
+      width:100%; max-height:220px; object-fit:cover; border-radius:10px; display:block; margin-bottom:8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.12);
     }
-    .photo-popup .popup img {
-      width: 100%;
-      max-height: 380px;
-      object-fit: cover; /* или contain, ако искаш да не се изрязва */
-      display: block;
-      border-radius: 10px;
-      box-shadow: 0 2px 10px rgba(0,0,0,.2);
-      margin-bottom: 8px;
+
+    /* Модална галерия */
+    .modal {
+      position: fixed; inset:0; background: rgba(0,0,0,.55); display:none; place-items:center; z-index: 2000;
     }
-    .photo-popup .popup h4 { margin: 0 0 6px; font: 600 15px/1.3 system-ui, Arial; }
-    .photo-popup .popup small { color:#555; }
-    .leaflet-control-container .leaflet-top.leaflet-left { margin-top: 64px; }
-    @media (max-width: 700px){ header { grid-template-columns: 1fr; height: 96px; } #map { inset: 96px 0 0 0; } }
+    .modal.open { display:grid; }
+    .modal-card{
+      width:min(1000px, 94vw); max-height: 92vh; overflow:auto; background:#fff; border-radius:16px; box-shadow:0 10px 40px rgba(0,0,0,.4);
+      display:grid; grid-template-rows: auto 1fr; gap:10px;
+    }
+    .modal-head{
+      display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid #eee;
+      position:sticky; top:0; background:#fff; z-index:1;
+    }
+    .modal-title{ font-weight:600; }
+    .close-btn{ border:0; background:#f2f2f2; padding:6px 10px; border-radius:10px; cursor:pointer; }
+    .grid{
+      padding:12px 16px 16px; display:grid; gap:10px;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    }
+    .grid figure{ margin:0; border:1px solid #eee; border-radius:12px; overflow:hidden; background:#fff; }
+    .grid img{ width:100%; height:160px; object-fit:cover; display:block; }
+    .grid figcaption{ padding:6px 8px; font-size:12px; color:var(--muted); }
+
+    @media (max-width:700px){ header{ grid-template-columns:1fr; height:96px; } #map{ inset:96px 0 0 0; } }
   </style>
 </head>
 <body>
   <header>
     <div class="search">
       🔎
-      <input id="q" type="search" placeholder="Търси по заглавие или дата (напр. 2025-08)…" />
+      <input id="q" type="search" placeholder="Търси място или албум (напр. 2022) …" />
     </div>
-    <button id="fitBtn" class="btn" title="Покажи всички маркери">Покажи всички</button>
-    <button id="shareBtn" class="btn" title="Копирай линк със сегашния изглед">Сподели изгледа</button>
+    <button id="fitBtn" class="btn">Покажи всички</button>
+    <button id="shareBtn" class="btn">Сподели изгледа</button>
   </header>
 
   <div id="map"></div>
 
   <div class="credit">
     Карта: © <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> ·
-    Библиотека: <a href="https://leafletjs.com/" target="_blank">Leaflet</a> ·
-    Клъстери: <a href="https://github.com/Leaflet/Leaflet.markercluster" target="_blank">MarkerCluster</a>
+    Leaflet · MarkerCluster
+  </div>
+
+  <!-- Модал за галерия -->
+  <div id="modal" class="modal" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-head">
+        <div class="modal-title" id="modal-title">Албум</div>
+        <button class="close-btn" id="modalClose">Затвори ✕</button>
+      </div>
+      <div class="grid" id="modalGrid"></div>
+    </div>
   </div>
 
 <script>
-/* === Настройки === */
-const IMG_BASE = "./";       // ако снимките са в подпапка – напр. 'photos/'
-const ENABLE_JSON = true;    // ако имаш photos.json до index.html
+/* ====== ДАННИ ======
+   Едно място = един маркер с множество албуми.
+   За всеки албум подай title и списък от снимки (src, по желание caption). */
+const IMG_BASE = "./"; // ако снимките са в подпапка – напр. 'photos/'
 
-/* === Данни (fallback) === */
-let PHOTOS = [
-  { lat: 42.697887755392884, lng: 23.330386398798577, src: "IMG_3380.JPEG", title: "София – НДК", date: "2025-08-21" },
+const PLACES = [
+  {
+    title: "София – НДК",
+    lat: 42.697887755392884, lng: 23.330386398798577,
+    cover: "IMG_3380.JPEG",        // показва се в pop-up над списъка
+    albums: [
+      {
+        title: "Екскурзия 2021",
+        photos: [
+          { src: "IMG_3380.JPEG", caption: "Дремещият герой 🐾" },
+          // ... добави още
+        ]
+      },
+      {
+        title: "Екскурзия 2022",
+        photos: [
+          { src: "IMG_3380.JPEG", caption: "Гуш" },
+          // ... добави още
+        ]
+      }
+    ]
+  },
+  // добавяй още места по модела по-горе
 ];
 
-/* === UI елементи === */
-const $q = document.getElementById('q');
-const $fitBtn = document.getElementById('fitBtn');
-const $shareBtn = document.getElementById('shareBtn');
+/* ====== ХЕЛПЕРИ ====== */
+const byId = (id)=>document.getElementById(id);
+const $q = byId('q'), $fitBtn = byId('fitBtn'), $shareBtn = byId('shareBtn');
+const $modal = byId('modal'), $modalGrid = byId('modalGrid'), $modalClose = byId('modalClose'), $modalTitle = byId('modal-title');
 
-/* === Помощни === */
-const normalize = (s) => (s||"").toString().toLowerCase().normalize('NFKD');
-const escapeHTML = (str) => (str||"").replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const normalize = (s)=> (s||"").toString().toLowerCase().normalize('NFKD');
+const esc = (s)=> (s||"").replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
 
-/* === КАРТА === */
-const map = L.map('map', {
-  minZoom: 3,
-  maxZoom: 19,
-  worldCopyJump: true
-});
-
+/* ====== КАРТА ====== */
+const map = L.map('map', { minZoom:3, maxZoom:19, worldCopyJump:true });
 const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenStreetMap contributors',
-  detectRetina: true,
-  keepBuffer: 2,
-  maxNativeZoom: 19
+  attribution:'&copy; OpenStreetMap contributors', detectRetina:true, keepBuffer:2, maxNativeZoom:19
 }).addTo(map);
-
-tiles.on('tileerror', (e) => console.warn('Tile error:', e.tile?.src));
-
-map.whenReady(() => {
-  map.setView([54, 15], 4); // цяла Европа
-});
-
-setTimeout(() => map.invalidateSize(), 0);
-
+tiles.on('tileerror', e => console.warn('Tile error:', e.tile?.src));
+map.whenReady(()=> map.setView([54, 15], 4));
+setTimeout(()=> map.invalidateSize(), 0);
 L.control.scale({imperial:false}).addTo(map);
 
-/* === Зелен маркер (SVG DivIcon) === */
-const greenPin = (function(){
-  const svg = encodeURIComponent(`
-    <svg width="28" height="42" viewBox="0 0 28 42" xmlns="http://www.w3.org/2000/svg">
-      <defs><filter id="s" x="-50%" y="-50%" width="200%" height="200%">
-        <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-opacity=".3"/>
-      </filter></defs>
-      <path filter="url(#s)" d="M14 0C6.82 0 1 5.82 1 13c0 9.31 11.33 23.86 12.01 24.73a1.25 1.25 0 0 0 1.98 0C15.67 36.86 27 22.31 27 13 27 5.82 21.18 0 14 0z" fill="#2ecc71"/>
-      <circle cx="14" cy="13" r="5" fill="white" opacity=".85"/>
-    </svg>`);
-  return L.divIcon({
-    className: 'green-pin',
-    html: `<img alt="" src="data:image/svg+xml,${svg}" style="display:block;width:28px;height:42px">`,
-    iconSize: [28, 42],
-    iconAnchor: [14, 42],
-    popupAnchor: [0, -36]
+/* Зелен DivIcon */
+const greenPin = (()=>{
+  const svg = encodeURIComponent(`<svg width="28" height="42" viewBox="0 0 28 42" xmlns="http://www.w3.org/2000/svg">
+    <defs><filter id="s" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-opacity=".3"/></filter></defs>
+    <path filter="url(#s)" d="M14 0C6.82 0 1 5.82 1 13c0 9.31 11.33 23.86 12.01 24.73a1.25 1.25 0 0 0 1.98 0C15.67 36.86 27 22.31 27 13 27 5.82 21.18 0 14 0z" fill="#2ecc71"/>
+    <circle cx="14" cy="13" r="5" fill="white" opacity=".85"/></svg>`);
+  return L.divIcon({ className:'green-pin',
+    html:`<img alt="" src="data:image/svg+xml,${svg}" style="display:block;width:28px;height:42px">`,
+    iconSize:[28,42], iconAnchor:[14,42], popupAnchor:[0,-36]
   });
 })();
 
-/* === Клъстер група === */
-const cluster = L.markerClusterGroup();
-map.addLayer(cluster);
+const cluster = L.markerClusterGroup().addTo(map);
 
-/* === Състояние === */
-let items = [];   // { marker, data }
+/* Държим маркерите за fit/search */
+let items = []; // { marker, place }
 
-/* === POPUP === */
-function popupHTML(p){
-  const src = (p.src.startsWith('http') ? p.src : IMG_BASE + p.src);
+/* ====== POPUP HTML ====== */
+function popupHTML(place, idx){
+  const cover = place.cover ? (place.cover.startsWith('http') ? place.cover : IMG_BASE + place.cover) : null;
+  const albums = place.albums || [];
+  const albumList = albums.map((a, j)=> `
+    <button class="album-btn" data-place="${idx}" data-album="${j}">
+      <span>${esc(a.title)}</span>
+      <span>отвори ›</span>
+    </button>`).join('');
   return `
     <div class="popup">
-      <h4>${escapeHTML(p.title || 'Снимка')}</h4>
-      <img loading="lazy" src="${src}" alt="${escapeHTML(p.title || 'Photo')}" />
-      ${p.date ? `<small>Дата: ${escapeHTML(p.date)}</small><br/>` : ""}
-      <small>Коорд.: ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</small>
+      <h4>${esc(place.title || 'Място')}</h4>
+      ${cover ? `<img class="cover" loading="lazy" src="${cover}" alt="">` : ''}
+      <small>Коорд.: ${place.lat.toFixed(5)}, ${place.lng.toFixed(5)}</small>
+      <div class="albums" style="margin-top:10px">
+        ${albumList || '<small style="color:#999">Няма албуми</small>'}
+      </div>
     </div>`;
 }
 
-/* === Маркери === */
+/* ====== МАРКЕРИ ====== */
 function buildMarkers(data){
   cluster.clearLayers();
-  items = data.map(p => {
+  items = data.map((p, i)=>{
     const m = L.marker([p.lat, p.lng], { icon: greenPin }).bindPopup(
-      popupHTML(p),
-      {
-        maxWidth: 320,
-        className: 'photo-popup',
-        keepInView: true,
-        autoPanPadding: [20,20]
-      }
+      popupHTML(p, i),
+      { className:'photo-popup', maxWidth:320, keepInView:true, autoPanPadding:[20,20] }
     );
+    m.on('popupopen', (e)=>{
+      // закачаме handler-и за бутоните вътре в pop-up-а
+      const container = e.popup.getElement();
+      container.querySelectorAll('.album-btn').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const pi = Number(btn.dataset.place), ai = Number(btn.dataset.album);
+          openAlbum(data[pi], data[pi].albums[ai]);
+        }, { once:true });
+      });
+    });
     cluster.addLayer(m);
-    return { marker: m, data: p };
+    return { marker:m, place:p };
   });
   fitAll();
 }
 
-/* === Fit към всички точки === */
+/* ====== FIT ALL ====== */
 function fitAll(){
-  if (!items.length) {
-    map.setView([54, 15], 4);
-    return;
-  }
-  if (items.length === 1) {
-    map.setView(items[0].marker.getLatLng(), 12);
-    return;
-  }
-  const group = L.featureGroup(items.map(x => x.marker));
-  map.fitBounds(group.getBounds().pad(0.2), { maxZoom: 8 });
+  if(!items.length){ map.setView([54,15],4); return; }
+  if(items.length===1){ map.setView(items[0].marker.getLatLng(), 12); return; }
+  const group = L.featureGroup(items.map(x=>x.marker));
+  map.fitBounds(group.getBounds().pad(0.2), { maxZoom:8 });
 }
 
-/* === Филтър по заглавие/дата === */
+/* ====== ТЪРСЕНЕ (по място/албум) ====== */
 function applyFilter(q){
-  const qq = normalize(q||'');
+  const needle = normalize(q||'');
   cluster.clearLayers();
-  const filtered = qq
-    ? items.filter(x => normalize(x.data.title).includes(qq) || normalize(x.data.date).includes(qq))
-    : items;
-  filtered.forEach(x => cluster.addLayer(x.marker));
+  const filtered = !needle ? items : items.filter(x=>{
+    const t = normalize(x.place.title);
+    const hitPlace = t.includes(needle);
+    const hitAlbum = (x.place.albums||[]).some(a=> normalize(a.title).includes(needle));
+    return hitPlace || hitAlbum;
+  });
+  filtered.forEach(x=> cluster.addLayer(x.marker));
 }
 
-/* === Споделяне на изгледа === */
+/* ====== СПОДЕЛЯНЕ НА ИЗГЛЕДА ====== */
 function updateHash(){
-  const c = map.getCenter();
-  const z = map.getZoom();
-  const params = new URLSearchParams();
-  params.set('z', z);
-  params.set('lat', c.lat.toFixed(5));
-  params.set('lng', c.lng.toFixed(5));
-  if ($q.value) params.set('q', $q.value);
-  location.hash = params.toString();
+  const c = map.getCenter(), z = map.getZoom();
+  const p = new URLSearchParams();
+  p.set('z', z); p.set('lat', c.lat.toFixed(5)); p.set('lng', c.lng.toFixed(5));
+  if ($q.value) p.set('q', $q.value);
+  location.hash = p.toString();
 }
 function applyHash(){
-  if (!location.hash) return;
-  const params = new URLSearchParams(location.hash.slice(1));
-  const z = Number(params.get('z'));
-  const lat = Number(params.get('lat'));
-  const lng = Number(params.get('lng'));
-  const q = params.get('q') || '';
-  if (!Number.isNaN(z) && !Number.isNaN(lat) && !Number.isNaN(lng)){
-    map.setView([lat, lng], z);
-  }
-  if (q){ $q.value = q; applyFilter(q); }
+  if(!location.hash) return;
+  const p = new URLSearchParams(location.hash.slice(1));
+  const z = Number(p.get('z')), lat = Number(p.get('lat')), lng = Number(p.get('lng'));
+  const q = p.get('q') || '';
+  if(!Number.isNaN(z) && !Number.isNaN(lat) && !Number.isNaN(lng)) map.setView([lat,lng], z);
+  if(q){ $q.value = q; applyFilter(q); }
 }
 
-/* === Събития === */
-$q.addEventListener('input', (e) => applyFilter(e.target.value));
+/* ====== МОДАЛНА ГАЛЕРИЯ ====== */
+function openAlbum(place, album){
+  $modalTitle.textContent = `${place.title} • ${album.title}`;
+  $modalGrid.innerHTML = (album.photos||[]).map(ph=>{
+    const src = ph.src.startsWith('http') ? ph.src : IMG_BASE + ph.src;
+    const cap = esc(ph.caption||'');
+    return `<figure>
+      <img loading="lazy" src="${src}" alt="${cap}" onclick="window.open('${src}','_blank')" />
+      ${cap ? `<figcaption>${cap}</figcaption>` : ''}
+    </figure>`;
+  }).join('') || `<div style="padding:12px;color:#999">Няма снимки в този албум.</div>`;
+  $modal.classList.add('open');
+  $modal.setAttribute('aria-hidden','false');
+}
+function closeModal(){
+  $modal.classList.remove('open');
+  $modal.setAttribute('aria-hidden','true');
+}
+$modal.addEventListener('click', (e)=> { if(e.target===$modal) closeModal(); });
+$modalClose.addEventListener('click', closeModal);
+document.addEventListener('keydown', (e)=> { if(e.key==='Escape') closeModal(); });
+
+/* ====== UI събития ====== */
+$q.addEventListener('input', (e)=> applyFilter(e.target.value));
 $fitBtn.addEventListener('click', fitAll);
-$shareBtn.addEventListener('click', async () => {
+$shareBtn.addEventListener('click', async ()=>{
   updateHash();
   const url = location.href;
-  try {
-    await navigator.clipboard.writeText(url);
-    $shareBtn.textContent = 'Линк копиран!';
-    setTimeout(() => $shareBtn.textContent = 'Сподели изгледа', 1200);
-  } catch {
-    alert('Линкът е готов в адресната лента.');
-  }
+  try { await navigator.clipboard.writeText(url); $shareBtn.textContent='Линк копиран!'; setTimeout(()=> $shareBtn.textContent='Сподели изгледа', 1200); }
+  catch { alert('Копирай от адресната лента.'); }
 });
-map.on('moveend zoomend', () => { if (location.hash) updateHash(); });
+map.on('moveend zoomend', ()=> { if(location.hash) updateHash(); });
 
-/* === Зареждане на данни === */
-async function loadData(){
-  if (!ENABLE_JSON){
-    buildMarkers(PHOTOS);
-    applyHash();
-    return;
-  }
-  try{
-    const res = await fetch('./photos.json', { cache: 'no-store' });
-    if (!res.ok) throw new Error('No JSON');
-    const json = await res.json();
-    if (!Array.isArray(json)) throw new Error('JSON must be an array');
-    PHOTOS = json;
-  } catch(e){
-    console.warn('Не е намерен photos.json или е невалиден. Използвам вградените PHOTOS.', e);
-  }
-  buildMarkers(PHOTOS);
-  applyHash();
-}
-
-/* старт */
-loadData();
+/* ====== СТАРТ ====== */
+buildMarkers(PLACES);
+applyHash();
 </script>
 </body>
 </html>
