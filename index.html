@@ -252,21 +252,12 @@ function popupHTML(place, idx){
 function buildMarkers(data){
   cluster.clearLayers();
   items = data.map((p, i)=>{
-    // bind празно съдържание и винаги презареждай при popupopen
     const m = L.marker([p.lat, p.lng], { icon: greenPin }).bindPopup(
       '', { className:'photo-popup', maxWidth:320, keepInView:true, autoPanPadding:[20,20] }
     );
+    // винаги рендерирай начисто pop-up съдържанието при отваряне
     m.on('popupopen', (e)=>{
-      // 1) насилствено задаваме прясно съдържание (нова DOM дървесина)
       e.popup.setContent(popupHTML(p, i));
-      // 2) закачаме слушатели към новите бутони
-      const container = e.popup.getElement();
-      container.querySelectorAll('.album-btn').forEach(btn=>{
-        btn.addEventListener('click', ()=>{
-          const pi = Number(btn.dataset.place), ai = Number(btn.dataset.album);
-          openAlbum(data[pi], data[pi].albums[ai]);
-        });
-      });
     });
     cluster.addLayer(m);
     return { marker:m, place:p };
@@ -376,26 +367,21 @@ function prevPhoto(){ if(!currentPhotos.length) return; currentIndex = (currentI
 function backToAlbums(){
   closeModal();
   if (currentPlaceItem) {
-    const { marker, place } = currentPlaceItem;
+    const { marker } = currentPlaceItem;
     map.panTo(marker.getLatLng(), { animate:true });
-    // принуждаваме pop-up-а да се рендерира наново с setContent в popupopen handler-а
     setTimeout(()=> marker.openPopup(), 200);
   }
 }
 
-/* събития за модала */
-$modal.addEventListener('click', (e)=> { if(e.target===$modal) closeModal(); });
-$modalClose.addEventListener('click', closeModal);
-document.addEventListener('keydown', (e)=> {
-  if (!$modal.classList.contains('open')) return;
-  if (e.key==='Escape') closeModal();
-  if (e.key==='ArrowRight') nextPhoto();
-  if (e.key==='ArrowLeft') prevPhoto();
+/* --- Глобална делегация на кликовете по .album-btn --- */
+document.addEventListener('click', (e)=>{
+  const btn = e.target.closest?.('.album-btn');
+  if (!btn) return;
+  const pi = Number(btn.dataset.place), ai = Number(btn.dataset.album);
+  const place = PLACES[pi];
+  if (!place || !place.albums || !place.albums[ai]) return;
+  openAlbum(place, place.albums[ai]);
 });
-$navNext.addEventListener('click', nextPhoto);
-$navPrev.addEventListener('click', prevPhoto);
-$backBtn.addEventListener('click', backToAlbums);
-$titlePlace.addEventListener('click', backToAlbums);
 
 /* ====== UI събития ====== */
 $q.addEventListener('input', (e)=> applyFilter(e.target.value));
