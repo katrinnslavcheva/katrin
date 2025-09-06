@@ -85,15 +85,30 @@ const map = L.map('map', {
   maxZoom: 19,
   worldCopyJump: true
 });
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenStreetMap contributors'
+
+// добави плочките с малко по-„robust“ настройки
+const tiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors',
+  crossOrigin: true,
+  detectRetina: true,
+  keepBuffer: 2
 }).addTo(map);
-L.control.scale({imperial:false}).addTo(map);
+
+// изчакай картата да е готова и тогава задавай изгледа
+map.whenReady(() => {
+  map.setView([54, 15], 4);          // цяла Европа
+  // ако държиш да ограничиш пан-а след това:
+  // const EUROPE_BOUNDS = L.latLngBounds([34, -25], [72, 45]);
+  // map.setMaxBounds(EUROPE_BOUNDS.pad(0.05));
+  // map.on('drag', () => map.panInsideBounds(EUROPE_BOUNDS, { animate: false }));
+});
+
+// ако контейнерът е променил размера си (header, CSS и т.н.)
+setTimeout(() => map.invalidateSize(), 0);
 
 /* Стартов изглед: „цяла Европа“ */
 const EUROPE_CENTER = [54, 15];        // приблизително над Централна Европа
 const EUROPE_BOUNDS = L.latLngBounds([34, -25], [72, 45]); // SW / NE (малко по-широки граници)
-map.setMaxBounds(EUROPE_BOUNDS.pad(0.2));
 map.setView(EUROPE_CENTER, 4);
 
 /* === Зелен маркер (SVG DivIcon) === */
@@ -233,3 +248,4 @@ loadData();
 </script>
 </body>
 </html>
+
