@@ -75,7 +75,7 @@
     }
     .close-btn{ border:0; background:#f2f2f2; padding:8px 12px; border-radius:10px; cursor:pointer; }
 
-    /* Метаданни (период + описание) */
+    /* Метаданни */
     .meta { padding:10px 16px 6px; display:grid; gap:8px; }
     .meta-row { display:grid; grid-template-columns: 170px 1fr; gap:12px; align-items:start; font-size:14px; }
     .meta-label { color:#0f5132; font-weight:600; }
@@ -162,11 +162,8 @@
   </div>
 
 <script>
-/* ====== ДАННИ ======
-   Място -> албуми; албум = { title, period, description, photos:[{src, caption}] }
-*/
+/* ====== ДАННИ ====== */
 const IMG_BASE = "./";
-
 const PLACES = [
   {
     title: "София – НДК",
@@ -255,17 +252,20 @@ function popupHTML(place, idx){
 function buildMarkers(data){
   cluster.clearLayers();
   items = data.map((p, i)=>{
+    // bind празно съдържание и винаги презареждай при popupopen
     const m = L.marker([p.lat, p.lng], { icon: greenPin }).bindPopup(
-      popupHTML(p, i),
-      { className:'photo-popup', maxWidth:320, keepInView:true, autoPanPadding:[20,20] }
+      '', { className:'photo-popup', maxWidth:320, keepInView:true, autoPanPadding:[20,20] }
     );
     m.on('popupopen', (e)=>{
+      // 1) насилствено задаваме прясно съдържание (нова DOM дървесина)
+      e.popup.setContent(popupHTML(p, i));
+      // 2) закачаме слушатели към новите бутони
       const container = e.popup.getElement();
       container.querySelectorAll('.album-btn').forEach(btn=>{
         btn.addEventListener('click', ()=>{
           const pi = Number(btn.dataset.place), ai = Number(btn.dataset.album);
           openAlbum(data[pi], data[pi].albums[ai]);
-        }, { once:true });
+        });
       });
     });
     cluster.addLayer(m);
@@ -350,7 +350,6 @@ function renderViewer(){
   const src = ph.src.startsWith('http') ? ph.src : IMG_BASE + ph.src;
   $viewerImg.src = src;
   $viewerImg.alt = ph.caption || '';
-  // маркирай активния thumb
   [...$thumbs.children].forEach((el,i)=> el.classList.toggle('active', i===currentIndex));
 }
 
@@ -377,8 +376,9 @@ function prevPhoto(){ if(!currentPhotos.length) return; currentIndex = (currentI
 function backToAlbums(){
   closeModal();
   if (currentPlaceItem) {
-    const { marker } = currentPlaceItem;
+    const { marker, place } = currentPlaceItem;
     map.panTo(marker.getLatLng(), { animate:true });
+    // принуждаваме pop-up-а да се рендерира наново с setContent в popupopen handler-а
     setTimeout(()=> marker.openPopup(), 200);
   }
 }
@@ -395,7 +395,7 @@ document.addEventListener('keydown', (e)=> {
 $navNext.addEventListener('click', nextPhoto);
 $navPrev.addEventListener('click', prevPhoto);
 $backBtn.addEventListener('click', backToAlbums);
-$titlePlace.addEventListener('click', backToAlbums); // клик по заглавието връща назад
+$titlePlace.addEventListener('click', backToAlbums);
 
 /* ====== UI събития ====== */
 $q.addEventListener('input', (e)=> applyFilter(e.target.value));
